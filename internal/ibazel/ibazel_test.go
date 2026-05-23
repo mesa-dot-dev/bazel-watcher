@@ -653,3 +653,66 @@ func TestParseTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveLabels(t *testing.T) {
+	log.SetTesting(t)
+
+	localRepositories := map[string]string{
+		"nested": "/home/user/nested",
+	}
+	workspacePath := "/home/user/workspace"
+
+	tests := []struct {
+		name   string
+		labels []string
+		want   []string
+	}{
+		{
+			name:   "local label only",
+			labels: []string{"//:src/main.sh"},
+			want:   []string{filepath.Join(workspacePath, "src/main.sh")},
+		},
+		{
+			name:   "external repo label resolved to local path",
+			labels: []string{"@nested//:lib.sh"},
+			want:   []string{filepath.Join("/home/user/nested", "lib.sh")},
+		},
+		{
+			name:   "unknown external repo skipped",
+			labels: []string{"@unknown//:foo.sh"},
+			want:   []string{},
+		},
+		{
+			name:   "//external label skipped",
+			labels: []string{"//external/foo:bar.sh"},
+			want:   []string{},
+		},
+		{
+			name:   "local repo match does not stop processing subsequent labels",
+			labels: []string{"@nested//:lib.sh", "//:src/main.sh"},
+			want: []string{
+				filepath.Join("/home/user/nested", "lib.sh"),
+				filepath.Join(workspacePath, "src/main.sh"),
+			},
+		},
+		{
+			name:   "multiple local repo matches all resolved",
+			labels: []string{"@nested//:lib.sh", "@nested//:other.sh"},
+			want: []string{
+				filepath.Join("/home/user/nested", "lib.sh"),
+				filepath.Join("/home/user/nested", "other.sh"),
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := resolveLabels(test.labels, localRepositories, workspacePath)
+			if len(got) == 0 && len(test.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("resolveLabels(%v) = %v, want %v", test.labels, got, test.want)
+			}
+		})
+	}
+}

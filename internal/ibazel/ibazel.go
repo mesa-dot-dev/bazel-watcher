@@ -628,18 +628,7 @@ func (i *IBazel) watchFiles(toWatch []string, watcher common.Watcher) {
 	i.filesWatched[watcher] = filesWatched
 }
 
-func (i *IBazel) labelsToWatch(labels []string) ([]string, error) {
-	localRepositories, err := i.realLocalRepositoryPaths()
-	if err != nil {
-		return nil, err
-	}
-
-	workspacePath, err := i.workspaceFinder.FindWorkspace()
-	if err != nil {
-		log.Errorf("Error finding workspace: %v", err)
-		return nil, err
-	}
-
+func resolveLabels(labels []string, localRepositories map[string]string, workspacePath string) []string {
 	toWatch := make([]string, 0, len(labels))
 	for _, label := range labels {
 		if strings.HasPrefix(label, "@") {
@@ -658,8 +647,22 @@ func (i *IBazel) labelsToWatch(labels []string) ([]string, error) {
 		label = strings.Replace(strings.TrimPrefix(label, "//"), ":", string(filepath.Separator), 1)
 		toWatch = append(toWatch, filepath.Join(workspacePath, label))
 	}
+	return toWatch
+}
 
-	return toWatch, nil
+func (i *IBazel) labelsToWatch(labels []string) ([]string, error) {
+	localRepositories, err := i.realLocalRepositoryPaths()
+	if err != nil {
+		return nil, err
+	}
+
+	workspacePath, err := i.workspaceFinder.FindWorkspace()
+	if err != nil {
+		log.Errorf("Error finding workspace: %v", err)
+		return nil, err
+	}
+
+	return resolveLabels(labels, localRepositories, workspacePath), nil
 }
 
 func (i *IBazel) queryArgs(args ...string) []string {
